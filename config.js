@@ -1,6 +1,8 @@
 /* js/config.js */
 window.CryptoDashConfig = {
-    // Replace these with your actual Supabase project details
-    SUPABASE_URL: 'https://your-project-url.supabase.co',
-    SUPABASE_KEY: 'your-anon-key'
+    // 1. Your Project URL
+    SUPABASE_URL: 'https://ltzplnfjezhodqyeivqf.supabase.co',
+
+    // 2. Your API Key (Updated)
+    SUPABASE_KEY: 'sb_publishable_fAiXYpFQHj168riL99WCsg_Wj4EWRE6'
 };

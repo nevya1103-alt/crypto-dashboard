@@ -1,38 +1,90 @@
 /* js/ui.js */
 (function() {
     /* ── Theme Toggle ── */
-    var themeBtn = document.getElementById('theme-toggle-btn');
-    var themeIcon = document.getElementById('theme-icon');
+    var themeBtn = document.getElementById('theme-toggle-menu-btn');
+    var themeIcon = document.getElementById('theme-icon-menu');
     var dark = localStorage.getItem('crypto_theme') !== 'light';
-    if (!dark) {
-        document.documentElement.classList.add('light-theme');
-        themeIcon.textContent = '☀️';
-        themeBtn.setAttribute('aria-pressed', 'false');
-    } else {
-        document.documentElement.classList.remove('light-theme');
-        themeBtn.setAttribute('aria-pressed', 'true');
-    }
-    themeBtn.addEventListener('click', function () {
-        dark = !dark;
-        if (dark) {
-            document.documentElement.classList.remove('light-theme');
-            themeIcon.textContent = '🌙';
-            localStorage.setItem('crypto_theme', 'dark');
-            themeBtn.setAttribute('aria-pressed', 'true');
-        } else {
+    
+    function updateThemeUI() {
+        if (!themeBtn || !themeIcon) return;
+        if (!dark) {
             document.documentElement.classList.add('light-theme');
             themeIcon.textContent = '☀️';
-            localStorage.setItem('crypto_theme', 'light');
             themeBtn.setAttribute('aria-pressed', 'false');
+        } else {
+            document.documentElement.classList.remove('light-theme');
+            themeIcon.textContent = '🌙';
+            themeBtn.setAttribute('aria-pressed', 'true');
         }
-    });
+    }
+    updateThemeUI();
+
+    if (themeBtn) {
+        themeBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            dark = !dark;
+            localStorage.setItem('crypto_theme', dark ? 'dark' : 'light');
+            updateThemeUI();
+        });
+    }
+
+    /* ── User Profile Menu ── */
+    var userProfileBtn = document.getElementById('user-profile-btn');
+    var userDropdown = document.getElementById('user-dropdown');
+    var userEmailDisplay = document.getElementById('user-email-display');
+    var logoutBtn = document.getElementById('logout-btn');
+
+    if (userProfileBtn && userDropdown) {
+        userProfileBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            userDropdown.classList.toggle('open');
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function () {
+            userDropdown.classList.remove('open');
+        });
+
+        userDropdown.addEventListener('click', function (e) {
+            e.stopPropagation(); // Prevent closing when clicking inside
+        });
+    }
+
+    // Load User Info
+    async function loadUserInfo() {
+        var sb = window.CryptoDash.supabase;
+        if (!sb) return;
+        var { data: { user } } = await sb.auth.getUser();
+        if (user && userEmailDisplay) {
+            userEmailDisplay.textContent = user.email;
+        }
+    }
+    loadUserInfo();
+
+    // Logout Logic
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async function () {
+            var sb = window.CryptoDash.supabase;
+            if (sb) await sb.auth.signOut();
+            sessionStorage.removeItem('crypto_logged_in');
+            window.location.href = 'login.html';
+        });
+    }
 
     /* ── Sound Effects Engine ── */
     var ctx = null;
     var muted = localStorage.getItem('crypto_muted') === 'true';
-    var muteBtn = document.getElementById('mute-toggle-btn');
+    var muteBtn = document.getElementById('mute-toggle-menu-btn');
+    var muteIcon = document.getElementById('mute-icon-menu');
 
-    function getCtx() { if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)(); return ctx; }
+    function getCtx() { 
+        if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)(); 
+        if (ctx.state === 'suspended') ctx.resume();
+        return ctx; 
+    }
+
+    // Unlock audio on any click
+    document.addEventListener('click', function() { getCtx(); }, { once: true });
 
     function playTone(freq, dur, type, vol, ramp) {
         if (muted) return;
@@ -40,7 +92,7 @@
             var ac = getCtx(), o = ac.createOscillator(), g = ac.createGain();
             o.type = type || 'sine'; o.frequency.setValueAtTime(freq, ac.currentTime);
             if (ramp) o.frequency.linearRampToValueAtTime(ramp, ac.currentTime + dur);
-            g.gain.setValueAtTime(vol || 0.15, ac.currentTime);
+            g.gain.setValueAtTime(vol || 0.1, ac.currentTime);
             g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
             o.connect(g); g.connect(ac.destination);
             o.start(); o.stop(ac.currentTime + dur);
@@ -50,35 +102,45 @@
     window.CryptoDash.sounds = {
         buy: function () {
             if (muted) return;
-            try { var a = new Audio('https://actions.google.com/sounds/v1/foley/coin_drop_on_wood.ogg'); a.volume = 0.6; a.play(); } 
-            catch(e) { playTone(800, 0.12, 'sine', 0.15, 1200); setTimeout(function () { playTone(1200, 0.15, 'sine', 0.12, 1400); }, 100); }
+            // Play a synthetic "cha-ching" sound
+            playTone(800, 0.1, 'sine', 0.1, 1200);
+            setTimeout(function() { playTone(1200, 0.2, 'sine', 0.08, 1400); }, 80);
         },
         sell: function () {
             if (muted) return;
-            try { var a = new Audio('https://actions.google.com/sounds/v1/cartoon/magic_chime.ogg'); a.volume = 0.6; a.play(); }
-            catch(e) { playTone(600, 0.08, 'square', 0.08); setTimeout(function () { playTone(800, 0.08, 'square', 0.08); }, 80); setTimeout(function () { playTone(1100, 0.15, 'sine', 0.12); }, 160); }
+            // Play a synthetic "success" chime
+            playTone(600, 0.08, 'square', 0.05);
+            setTimeout(function () { playTone(800, 0.08, 'square', 0.05); }, 80);
+            setTimeout(function () { playTone(1100, 0.15, 'sine', 0.08); }, 160);
         },
         alert: function () {
             if (muted) return;
-            try { var a = new Audio('https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg'); a.volume = 0.6; a.play(); }
-            catch(e) { playTone(880, 0.15, 'sine', 0.15); setTimeout(function () { playTone(660, 0.15, 'sine', 0.12); }, 150); setTimeout(function () { playTone(440, 0.2, 'sine', 0.1); }, 300); }
+            playTone(880, 0.15, 'sine', 0.1);
+            setTimeout(function () { playTone(660, 0.15, 'sine', 0.08); }, 150);
         },
         rise: function () {
             if (muted) return;
-            try { var a = new Audio('https://actions.google.com/sounds/v1/water/water_drop.ogg'); a.volume = 0.4; a.play(); }
-            catch(e) { playTone(523, 0.1, 'sine', 0.08); setTimeout(function () { playTone(659, 0.12, 'sine', 0.08); }, 100); }
+            playTone(523, 0.1, 'sine', 0.05);
+            setTimeout(function () { playTone(659, 0.12, 'sine', 0.05); }, 100);
         }
     };
 
-    muteBtn.textContent = muted ? '🔇' : '🔊';
-    muteBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
-    muteBtn.addEventListener('click', function () {
-        muted = !muted;
-        localStorage.setItem('crypto_muted', muted);
-        muteBtn.textContent = muted ? '🔇' : '🔊';
+    function updateMuteUI() {
+        if (!muteBtn || !muteIcon) return;
+        muteIcon.textContent = muted ? '🔇' : '🔊';
         muteBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
-        if (!muted) { getCtx(); playTone(800, 0.1, 'sine', 0.1); }
-    });
+    }
+    updateMuteUI();
+
+    if (muteBtn) {
+        muteBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            muted = !muted;
+            localStorage.setItem('crypto_muted', muted);
+            updateMuteUI();
+            if (!muted) { getCtx(); playTone(800, 0.1, 'sine', 0.1); }
+        });
+    }
 
     /* ── Search UI ── */
     var searchInput = document.getElementById('crypto-search');

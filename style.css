@@ -2799,3 +2799,113 @@ html.light-theme .skeleton {
         scroll-behavior: auto !important;
     }
 }
+
+/* -- User Profile Menu -- */
+.user-menu-container {
+    position: fixed;
+    top: 1.5rem;
+    right: 13rem;
+    z-index: 500;
+}
+
+.user-profile-btn {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    color: var(--text-primary);
+    font-size: 1.25rem;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 16px var(--shadow-heavy);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.user-profile-btn:hover {
+    border-color: rgba(255,255,255,0.3);
+    transform: scale(1.05);
+}
+
+.user-dropdown {
+    position: absolute;
+    top: calc(100% + 0.75rem);
+    right: 0;
+    width: 240px;
+    background: var(--surface-modal);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 10px 25px var(--shadow-heavy);
+    padding: 0.75rem;
+    display: none;
+    flex-direction: column;
+    gap: 0.25rem;
+    animation: fadeInUp 0.2s ease-out;
+    backdrop-filter: blur(20px);
+}
+
+.user-dropdown.open {
+    display: flex;
+}
+
+.user-info {
+    padding: 0.5rem 0.75rem;
+}
+
+.user-label {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.2rem;
+}
+
+.user-email {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    word-break: break-all;
+}
+
+.menu-divider {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 0.5rem 0;
+}
+
+.menu-item {
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    padding: 0.6rem 0.75rem;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: background 0.2s;
+    text-align: left;
+    width: 100%;
+}
+
+.menu-item:hover {
+    background: var(--surface-hover);
+}
+
+.logout-btn {
+    color: #ef4444;
+}
+
+.logout-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+}
+
+@media (max-width: 768px) {
+    .user-menu-container { right: 1.5rem; top: 1rem; }
+    .user-dropdown { width: 200px; }
+}
+

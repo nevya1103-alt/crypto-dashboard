@@ -30,17 +30,33 @@
             <div class="gold-coin">₿</div>
         </div>
         <div class="loading-text">Loading Market Data</div>
-        <div class="loading-subtitle">Fetching live prices from CoinGecko…</div>
     </div>
 
-    <!-- Theme Toggle Button -->
-    <button class="theme-toggle-btn" id="theme-toggle-btn" title="Toggle light/dark theme" aria-label="Toggle theme">
-        <span class="theme-icon" id="theme-icon">🌙</span>
-    </button>
-
-    <!-- Sound Mute Toggle -->
-    <button class="mute-toggle-btn" id="mute-toggle-btn" title="Toggle sounds"
-        aria-label="Toggle sound effects">🔊</button>
+    <!-- User Profile Menu -->
+    <div class="user-menu-container">
+        <button class="user-profile-btn" id="user-profile-btn" title="User Menu" aria-label="Open user menu">
+            <span class="user-avatar-icon">👤</span>
+        </button>
+        <div class="user-dropdown" id="user-dropdown">
+            <div class="user-info">
+                <div class="user-label">Logged in as</div>
+                <div class="user-email" id="user-email-display">Loading...</div>
+            </div>
+            <hr class="menu-divider">
+            <button class="menu-item" id="theme-toggle-menu-btn">
+                <span>Theme</span>
+                <span id="theme-icon-menu">🌙</span>
+            </button>
+            <button class="menu-item" id="mute-toggle-menu-btn">
+                <span>Sound</span>
+                <span id="mute-icon-menu">🔊</span>
+            </button>
+            <button class="menu-item logout-btn" id="logout-btn">
+                <span>Logout</span>
+                <span>🚪</span>
+            </button>
+        </div>
+    </div>
 
     <!-- Price Alerts Button -->
     <button class="alerts-btn" id="alerts-btn" title="Price Alerts" aria-label="Open price alerts">
