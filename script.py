@@ -1,5 +1,6 @@
 import asyncio
 import json
+from html import escape
 from js import document, fetch, window
 
 API_URL = (
@@ -32,6 +33,12 @@ def format_change(value):
     prefix = "+" if v >= 0 else ""
     return f'<td class="{css}">{prefix}{v:.2f}%</td>'
 
+def safe_text(value):
+    return escape(str(value or ""), quote=False)
+
+def safe_attr(value):
+    return escape(str(value or ""), quote=True)
+
 # ── Main render ───────────────────────────────────────────────────────────
 
 def analyze_and_render(data):
@@ -56,24 +63,25 @@ def analyze_and_render(data):
 
     high_val = highest_change.get('price_change_percentage_24h') or 0
     document.getElementById('highest-change').innerHTML = (
-        f"{highest_change['name']} <span class='positive'>(+{high_val:.2f}%)</span>"
+        f"{safe_text(highest_change.get('name'))} <span class='positive'>(+{high_val:.2f}%)</span>"
     )
     low_val = lowest_change.get('price_change_percentage_24h') or 0
     document.getElementById('lowest-change').innerHTML = (
-        f"{lowest_change['name']} <span class='negative'>({low_val:.2f}%)</span>"
+        f"{safe_text(lowest_change.get('name'))} <span class='negative'>({low_val:.2f}%)</span>"
     )
 
     # 4. Top-5 grid
     top5_rows = []
     for coin in top_5:
-        sym  = str(coin.get('symbol') or '').upper()
-        name = str(coin.get('name') or '')
-        mcap = format_compact(coin.get('market_cap') or 0)
+        sym  = safe_text(str(coin.get('symbol') or '').upper())
+        name = safe_text(coin.get('name'))
+        mcap_usd = coin.get('market_cap') or 0
+        mcap = format_compact(mcap_usd)
         top5_rows.append(
             f'<div class="top-5-card">'
             f'<span class="symbol">{sym}</span>'
             f'<div class="name">{name}</div>'
-            f'<div class="cap">{mcap}</div>'
+            f'<div class="cap" data-usd="{mcap_usd}">{mcap}</div>'
             f'</div>'
         )
     document.getElementById('top-5-container').innerHTML = "".join(top5_rows)
@@ -82,10 +90,13 @@ def analyze_and_render(data):
     table_rows = []
     for idx, coin in enumerate(data):
         rank      = idx + 1
-        coin_id   = str(coin.get('id') or '')
-        name      = str(coin.get('name') or '')
-        image     = str(coin.get('image') or '')
-        sym       = str(coin.get('symbol') or '').upper()
+        coin_id   = safe_attr(coin.get('id'))
+        name      = safe_text(coin.get('name'))
+        name_attr = safe_attr(coin.get('name'))
+        image     = safe_attr(coin.get('image'))
+        raw_sym   = str(coin.get('symbol') or '').upper()
+        sym       = safe_text(raw_sym)
+        sym_attr  = safe_attr(raw_sym)
         price     = format_currency(coin.get('current_price') or 0)
         mcap      = format_compact(coin.get('market_cap') or 0)
         vol       = format_compact(coin.get('total_volume') or 0)
@@ -93,14 +104,14 @@ def analyze_and_render(data):
         change_24h = coin.get('price_change_percentage_24h') or 0
         change_7d  = coin.get('price_change_percentage_7d_in_currency') or 0
 
-        row  = (f'<tr class="clickable-row" '
+        row  = (f'<tr class="clickable-row" tabindex="0" role="button" '
                 f'data-coin-id="{coin_id}" '
-                f'data-coin-name="{name}" '
-                f'data-coin-symbol="{sym}" '
+                f'data-coin-name="{name_attr}" '
+                f'data-coin-symbol="{sym_attr}" '
                 f'data-coin-image="{image}">')
         row += f'<td>#{rank}</td>'
         row += (f'<td><div class="coin-name-cell">'
-                f'<img src="{image}" alt="{name} logo">'
+                f'<img src="{image}" alt="{name_attr} logo">'
                 f'<span>{name}</span></div></td>')
         row += f'<td><span class="badge">{sym}</span></td>'
         row += f'<td class="price-cell" data-usd="{coin.get("current_price") or 0}">{price}</td>'
@@ -116,6 +127,22 @@ def analyze_and_render(data):
 
     # 6. Trigger JS currency re-render after table is populated
     window.eval("if(typeof reRenderTable==='function') reRenderTable();")
+
+    # 7. Dismiss the loading overlay
+    window.eval("""
+        var lo = document.getElementById('loading-overlay');
+        if (lo && !lo.classList.contains('hidden')) {
+            lo.classList.add('hidden');
+            setTimeout(function() { lo.remove(); }, 600);
+        }
+    """)
+
+    # 8. Trigger alert, watchlist, and achievement checks
+    window.eval("""
+        if (typeof window.CryptoDash.checkAlerts === 'function') window.CryptoDash.checkAlerts();
+        if (typeof window.CryptoDash.checkWatchlistRises === 'function') window.CryptoDash.checkWatchlistRises();
+        if (typeof window.CryptoDash.checkPortfolioAchievements === 'function') window.CryptoDash.checkPortfolioAchievements();
+    """)
 
 # ── Fetch loop ────────────────────────────────────────────────────────────
 
