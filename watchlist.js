@@ -3,19 +3,11 @@
     function getWatchlist() { try { return JSON.parse(localStorage.getItem('crypto_watchlist')) || []; } catch(e) { return []; } }
     function saveWatchlist(w) { localStorage.setItem('crypto_watchlist', JSON.stringify(w)); syncToCloud(); }
 
-    /* ── Supabase Sync Logic ── */
-    async function syncToCloud() {
-        var sb = window.CryptoDash.supabase;
-        if (!sb) return;
-        var { data: { user } } = await sb.auth.getUser();
-        if (!user) return;
-
-        const { error } = await sb.from('portfolios').upsert({ 
-            user_id: user.id, 
-            watchlist: getWatchlist(),
-            updated_at: new Date().toISOString()
-        }, { onConflict: 'user_id' });
-        if (error) console.error("Watchlist sync error:", error.message);
+    /* ── Global Sync Proxy ── */
+    function syncToCloud() {
+        if (window.CryptoDash && window.CryptoDash.saveAllToCloud) {
+            window.CryptoDash.saveAllToCloud();
+        }
     }
 
     async function loadFromCloud() {
@@ -28,11 +20,12 @@
         if (error && error.code !== 'PGRST116') return;
         if (data && data.watchlist) {
             localStorage.setItem('crypto_watchlist', JSON.stringify(data.watchlist));
-            if (typeof window.reRenderTable === 'function') window.reRenderTable();
-            window.CryptoDash.renderWatchlistPanel();
+        } else {
+            localStorage.removeItem('crypto_watchlist');
         }
+        if (typeof window.reRenderTable === 'function') window.reRenderTable();
+        if (window.CryptoDash && window.CryptoDash.renderWatchlistPanel) window.CryptoDash.renderWatchlistPanel();
     }
-    loadFromCloud();
 
     window.CryptoDash.toggleWatchlist = function(e, coinId) {
         if (e) { e.stopPropagation(); }
@@ -120,4 +113,5 @@
     function closeWl() { wp.classList.remove('open'); wo.classList.remove('open'); }
     document.getElementById('watchlist-close-btn').addEventListener('click', closeWl);
     wo.addEventListener('click', closeWl);
+    loadFromCloud();
 })();

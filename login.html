@@ -353,6 +353,30 @@
             90% { opacity: 1; }
             100% { transform: translateY(-10vh) scale(1); opacity: 0; }
         }
+
+        /* ── Reg Details ── */
+        .reg-details {
+            display: none;
+            flex-direction: column;
+            gap: 1rem;
+            margin-top: 0.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            animation: fadeIn 0.4s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .reg-details.show {
+            display: flex;
+        }
+
+        .login-card h1 {
+            transition: all 0.3s;
+        }
     </style>
 </head>
 
@@ -382,6 +406,40 @@
             <div class="form-group">
                 <label for="login-password">Password</label>
                 <input type="password" id="login-password" placeholder="Enter your password" required>
+            </div>
+
+            <!-- Registration Details (shown on signup) -->
+            <div class="reg-details" id="reg-details">
+                <div class="divider"><span>Personal Details</span></div>
+                <div class="form-group">
+                    <label for="reg-name">Full Name</label>
+                    <input type="text" id="reg-name" placeholder="Enter your full name">
+                </div>
+                <div class="form-group">
+                    <label for="reg-phone">Phone Number</label>
+                    <input type="tel" id="reg-phone" placeholder="e.g., +1 234 567 890">
+                </div>
+                <div style="display: flex; gap: 0.75rem;">
+                    <div class="form-group" style="flex: 1;">
+                        <label for="reg-gender">Gender</label>
+                        <select id="reg-gender" style="padding: 0.75rem 1rem; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border); border-radius: 12px; color: var(--text);">
+                            <option value="">Select</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Non-binary">Non-binary</option>
+                            <option value="Other">Other</option>
+                            <option value="Prefer not to say">Prefer not to say</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="reg-dob">Date of Birth</label>
+                        <input type="date" id="reg-dob">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="reg-occupation">Occupation</label>
+                    <input type="text" id="reg-occupation" placeholder="e.g., Software Developer">
+                </div>
             </div>
 
             <div class="form-extras">
@@ -422,8 +480,8 @@
             </div>
         </form>
 
-        <div class="login-footer">
-            Don't have an account? <a href="#" onclick="event.preventDefault(); window.doRegister();">Create one</a>
+        <div class="login-footer" id="login-footer">
+            Don't have an account? <a href="#" id="toggle-mode-link">Create one</a>
         </div>
     </div>
 
@@ -461,9 +519,35 @@
             handleAuth('signin');
         });
 
-        window.doRegister = function() {
-            handleAuth('signup');
-        };
+        /* ── Toggle Modes ── */
+        var mode = 'signin';
+        var regDetails = document.getElementById('reg-details');
+        var toggleLink = document.getElementById('toggle-mode-link');
+        var footerText = document.getElementById('login-footer');
+        var cardTitle = document.querySelector('.login-brand h1');
+        var cardSub = document.querySelector('.login-brand p');
+
+        toggleLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (mode === 'signin') {
+                mode = 'signup';
+                regDetails.classList.add('show');
+                signinBtn.textContent = 'Create Account';
+                cardTitle.textContent = 'Join Us';
+                cardSub.textContent = 'Fill in your details to get started';
+                footerText.innerHTML = 'Already have an account? <a href="#" id="toggle-mode-link">Sign In</a>';
+                // Re-bind listener because we just replaced the innerHTML
+                document.getElementById('toggle-mode-link').addEventListener('click', arguments.callee);
+            } else {
+                mode = 'signin';
+                regDetails.classList.remove('show');
+                signinBtn.textContent = 'Sign In';
+                cardTitle.textContent = 'Crypto Dashboard';
+                cardSub.textContent = 'Sign in to access live market data & trading';
+                footerText.innerHTML = 'Don\'t have an account? <a href="#" id="toggle-mode-link">Create one</a>';
+                document.getElementById('toggle-mode-link').addEventListener('click', arguments.callee);
+            }
+        });
 
         async function handleAuth(type) {
             if (!sb) {
@@ -474,22 +558,60 @@
             var email = emailInput.value;
             var password = passwordInput.value;
 
-            signinBtn.textContent = type === 'signin' ? 'Signing in…' : 'Creating account…';
+            signinBtn.textContent = mode === 'signin' ? 'Signing in…' : 'Creating account…';
             signinBtn.disabled = true;
             signinBtn.style.opacity = '0.7';
 
             try {
                 var result;
-                if (type === 'signin') {
+                if (mode === 'signin') {
                     result = await sb.auth.signInWithPassword({ email: email, password: password });
                 } else {
-                    result = await sb.auth.signUp({ email: email, password: password });
+                    // Registration with metadata
+                    var metadata = {
+                        full_name: document.getElementById('reg-name').value,
+                        phone: document.getElementById('reg-phone').value,
+                        gender: document.getElementById('reg-gender').value,
+                        dob: document.getElementById('reg-dob').value,
+                        occupation: document.getElementById('reg-occupation').value
+                    };
+                    
+                    result = await sb.auth.signUp({ 
+                        email: email, 
+                        password: password,
+                        options: {
+                            data: metadata
+                        }
+                    });
+
+                    // Save locally for demo consistency
+                    if (!result.error) {
+                        var profileData = {
+                            name: metadata.full_name,
+                            phone: metadata.phone,
+                            gender: metadata.gender,
+                            dob: metadata.dob,
+                            occupation: metadata.occupation
+                        };
+                        localStorage.setItem('crypto_user_profile', JSON.stringify(profileData));
+
+                        // If auto-logged in, try to sync to portfolios table immediately
+                        if (result.data.session) {
+                            try {
+                                await sb.from('portfolios').upsert({
+                                    user_id: result.data.user.id,
+                                    profile: profileData,
+                                    updated_at: new Date().toISOString()
+                                }, { onConflict: 'user_id' });
+                            } catch (e) { console.warn("Initial sync failed", e); }
+                        }
+                    }
                 }
 
                 if (result.error) {
                     alert(result.error.message);
                 } else {
-                    if (type === 'signup' && !result.data.session) {
+                    if (mode === 'signup' && !result.data.session) {
                         alert("Check your email for the confirmation link!");
                     } else {
                         sessionStorage.setItem('crypto_logged_in', 'true');
@@ -499,7 +621,7 @@
             } catch (err) {
                 alert("An unexpected error occurred: " + err.message);
             } finally {
-                signinBtn.textContent = 'Sign In';
+                signinBtn.textContent = mode === 'signin' ? 'Sign In' : 'Create Account';
                 signinBtn.disabled = false;
                 signinBtn.style.opacity = '1';
             }

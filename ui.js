@@ -50,13 +50,55 @@
         });
     }
 
+    /* ── Main Navigation Dropdown (Top Left) ── */
+    var navTriggerBtn = document.getElementById('nav-trigger-btn');
+    var navDropdown = document.getElementById('nav-dropdown');
+
+    if (navTriggerBtn && navDropdown) {
+        navTriggerBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            navDropdown.classList.toggle('open');
+            if (userDropdown) userDropdown.classList.remove('open'); // Close other if open
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function () {
+            navDropdown.classList.remove('open');
+        });
+
+        navDropdown.addEventListener('click', function (e) {
+            e.stopPropagation(); // Prevent closing when clicking inside
+        });
+    }
+
     // Load User Info
     async function loadUserInfo() {
         var sb = window.CryptoDash.supabase;
         if (!sb) return;
         var { data: { user } } = await sb.auth.getUser();
-        if (user && userEmailDisplay) {
-            userEmailDisplay.textContent = user.email;
+        if (user) {
+            if (userEmailDisplay) userEmailDisplay.textContent = user.email;
+            
+            // Fallback: If local profile is empty, try to restore from Auth Metadata
+            var localProfile = localStorage.getItem('crypto_user_profile');
+            var localIsEmpty = !localProfile || localProfile === '{}' || localProfile === 'null';
+
+            if (localIsEmpty) {
+                var meta = user.user_metadata || {};
+                if (meta.full_name || meta.phone || meta.occupation) {
+                    var restored = {
+                        name: meta.full_name || '',
+                        phone: meta.phone || '',
+                        gender: meta.gender || '',
+                        dob: meta.dob || '',
+                        occupation: meta.occupation || ''
+                    };
+                    localStorage.setItem('crypto_user_profile', JSON.stringify(restored));
+                    if (window.CryptoDash && window.CryptoDash.loadProfile) {
+                        window.CryptoDash.loadProfile();
+                    }
+                }
+            }
         }
     }
     loadUserInfo();
@@ -65,7 +107,21 @@
     if (logoutBtn) {
         logoutBtn.addEventListener('click', async function () {
             var sb = window.CryptoDash.supabase;
-            if (sb) await sb.auth.signOut();
+            if (sb) {
+                // Final sync before logout
+                if (window.CryptoDash.saveAllToCloud) {
+                    await window.CryptoDash.saveAllToCloud();
+                }
+                await sb.auth.signOut();
+            }
+            
+            // Clear all user-specific localStorage data
+            Object.keys(localStorage).forEach(key => {
+                if (key.startsWith('crypto_')) {
+                    localStorage.removeItem(key);
+                }
+            });
+
             sessionStorage.removeItem('crypto_logged_in');
             window.location.href = 'login.html';
         });
@@ -201,5 +257,81 @@
             }
         }
     });
+
+    // Profile Management
+    var profileView = document.getElementById('profile-view-mode');
+    var profileEdit = document.getElementById('profile-edit-mode');
+    var editBtn = document.getElementById('profile-edit-btn');
+    var saveBtn = document.getElementById('profile-save-btn');
+    var cancelBtn = document.getElementById('profile-cancel-btn');
+
+    var profileFields = ['name', 'phone', 'gender', 'dob', 'occupation'];
+
+    function loadProfile() {
+        var data = {};
+        try { data = JSON.parse(localStorage.getItem('crypto_user_profile')) || {}; } catch(e) {}
+        
+        // Populate personal info fields
+        profileFields.forEach(function(f) {
+            var val = data[f] || '—';
+            var viewEl = document.getElementById('view-' + f);
+            var editEl = document.getElementById('edit-' + f);
+            if (viewEl) viewEl.textContent = val;
+            if (editEl) editEl.value = (val === '—') ? '' : val;
+        });
+
+        // Also set email in the personal info section
+        var sb = window.CryptoDash.supabase;
+        if (sb) {
+            sb.auth.getUser().then(function(res) {
+                if (res.data && res.data.user) {
+                    var emailView = document.getElementById('view-email');
+                    if (emailView) emailView.textContent = res.data.user.email;
+                    if (userEmailDisplay) userEmailDisplay.textContent = res.data.user.email;
+                }
+            });
+        }
+    }
+
+    async function saveProfile() {
+        var saveBtn = document.getElementById('profile-save-btn');
+        var ogText = saveBtn.textContent;
+        saveBtn.textContent = 'Saving...';
+        saveBtn.disabled = true;
+
+        var data = {};
+        profileFields.forEach(function(f) {
+            var el = document.getElementById('edit-' + f);
+            if (el) data[f] = el.value;
+        });
+        localStorage.setItem('crypto_user_profile', JSON.stringify(data));
+        
+        // Sync to cloud
+        if (window.CryptoDash && window.CryptoDash.saveAllToCloud) {
+            await window.CryptoDash.saveAllToCloud();
+        }
+
+        loadProfile();
+        toggleEditMode(false);
+        saveBtn.textContent = ogText;
+        saveBtn.disabled = false;
+
+        if (window.CryptoDash && window.CryptoDash.showToast) {
+            window.CryptoDash.showToast('Profile updated successfully!', 'success');
+        }
+    }
+
+    function toggleEditMode(editing) {
+        if (!profileView || !profileEdit) return;
+        profileView.style.display = editing ? 'none' : 'block';
+        profileEdit.style.display = editing ? 'block' : 'none';
+    }
+
+    if (editBtn) editBtn.addEventListener('click', function() { toggleEditMode(true); });
+    if (cancelBtn) cancelBtn.addEventListener('click', function() { toggleEditMode(false); });
+    if (saveBtn) saveBtn.addEventListener('click', saveProfile);
+
+    loadProfile();
+    window.CryptoDash.loadProfile = loadProfile;
 
 })();

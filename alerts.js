@@ -6,19 +6,11 @@
     function loadAlerts() { try { return JSON.parse(localStorage.getItem(AK)) || []; } catch (e) { return []; } }
     function saveAlerts(a) { localStorage.setItem(AK, JSON.stringify(a)); syncToCloud(); }
 
-    /* ── Supabase Sync Logic ── */
-    async function syncToCloud() {
-        var sb = window.CryptoDash.supabase;
-        if (!sb) return;
-        var { data: { user } } = await sb.auth.getUser();
-        if (!user) return;
-
-        const { error } = await sb.from('portfolios').upsert({ 
-            user_id: user.id, 
-            alerts: loadAlerts(),
-            updated_at: new Date().toISOString()
-        }, { onConflict: 'user_id' });
-        if (error) console.error("Alerts sync error:", error.message);
+    /* ── Global Sync Proxy ── */
+    function syncToCloud() {
+        if (window.CryptoDash && window.CryptoDash.saveAllToCloud) {
+            window.CryptoDash.saveAllToCloud();
+        }
     }
 
     async function loadFromCloud() {
@@ -32,9 +24,11 @@
         if (data && data.alerts) {
             localStorage.setItem(AK, JSON.stringify(data.alerts));
             window.CryptoDash.renderAlerts();
+        } else {
+            localStorage.removeItem(AK);
+            window.CryptoDash.renderAlerts();
         }
     }
-    loadFromCloud();
     function loadSmsSettings() {
         try { return JSON.parse(localStorage.getItem(SMSK)) || { enabled: false, phone: '' }; }
         catch (e) { return { enabled: false, phone: '' }; }
@@ -96,24 +90,50 @@
     if (smsEnabled) smsEnabled.addEventListener('change', persistSmsSettings);
     if (smsPhone) smsPhone.addEventListener('input', persistSmsSettings);
 
-    window.CryptoDash.sendSmsAlert = function (triggeredAlerts, message) {
+    window.CryptoDash.sendSmsAlert = async function (triggeredAlerts, message) {
         var settings = loadSmsSettings();
         if (!settings.enabled) return false;
         if (!isValidPhone(settings.phone)) {
             updateSmsNote('SMS alert skipped: phone number is invalid.', 'error');
             return false;
         }
+
         var payload = {
             id: Date.now(),
             phone: normalizePhone(settings.phone),
             message: message,
             alerts: triggeredAlerts,
-            status: 'queued-locally',
+            status: 'attempting-send',
             createdAt: new Date().toISOString()
         };
         queueSms(payload);
-        updateSmsNote('SMS queued locally. Add a backend endpoint to send it for real.', 'queued');
-        console.info('SMS alert queued locally. Send this payload from a backend:', payload);
+
+        // Attempting to send via free gateway (Textbelt - 1/day limit)
+        updateSmsNote('Sending real SMS alert...', 'ready');
+        
+        try {
+            var res = await fetch('https://textbelt.com/text', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    phone: payload.phone,
+                    message: "🔔 CryptoDash: " + message,
+                    key: 'textbelt' // Free tier
+                })
+            });
+            var data = await res.json();
+            
+            if (data.success) {
+                updateSmsNote('✅ SMS sent successfully via Textbelt!', 'ready');
+                console.info('SMS Success:', data);
+            } else {
+                var reason = data.error || 'limit reached';
+                updateSmsNote('Queued locally. Cloud delivery skipped: ' + reason, 'warning');
+            }
+        } catch (e) {
+            updateSmsNote('Queued locally. Network error connecting to SMS gateway.', 'error');
+        }
+
         return true;
     };
 
@@ -241,4 +261,5 @@
 
     renderSmsSettings();
     window.CryptoDash.renderAlerts();
+    loadFromCloud();
 })();

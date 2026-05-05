@@ -46,7 +46,6 @@ def analyze_and_render(data):
         return
 
     # 1. Store raw data as proper JSON string, then parse in JS
-    #    (PyScript proxy objects don't behave as real JS arrays)
     data_json = json.dumps(data)
     window.eval(f"window.CryptoDash.rawData = {data_json};")
 
@@ -86,8 +85,16 @@ def analyze_and_render(data):
         )
     document.getElementById('top-5-container').innerHTML = "".join(top5_rows)
 
-    # 5. Table rows — clickable, data attributes carry coin metadata for JS
+    # 5. Table rows
     table_rows = []
+    
+    # Fetch watchlist for star state
+    wl_str = window.eval("localStorage.getItem('crypto_watchlist') || '[]'")
+    try:
+        watchlist = json.loads(wl_str)
+    except:
+        watchlist = []
+
     for idx, coin in enumerate(data):
         rank      = idx + 1
         coin_id   = safe_attr(coin.get('id'))
@@ -104,11 +111,16 @@ def analyze_and_render(data):
         change_24h = coin.get('price_change_percentage_24h') or 0
         change_7d  = coin.get('price_change_percentage_7d_in_currency') or 0
 
+        is_fav = coin_id in watchlist
+        star_cls = "star-btn active" if is_fav else "star-btn"
+        star_btn = f'<td><button class="{star_cls}" data-coin-id="{coin_id}" onclick="window.CryptoDash.toggleWatchlist(event, \'{coin_id}\')" aria-label="Toggle watchlist">⭐</button></td>'
+
         row  = (f'<tr class="clickable-row" tabindex="0" role="button" '
                 f'data-coin-id="{coin_id}" '
                 f'data-coin-name="{name_attr}" '
                 f'data-coin-symbol="{sym_attr}" '
                 f'data-coin-image="{image}">')
+        row += star_btn
         row += f'<td>#{rank}</td>'
         row += (f'<td><div class="coin-name-cell">'
                 f'<img src="{image}" alt="{name_attr} logo">'
@@ -161,4 +173,7 @@ async def main():
         await asyncio.sleep(300)
         await fetch_crypto_data()
 
-asyncio.ensure_future(main())
+async def main_wrapper():
+    await main()
+
+asyncio.ensure_future(main_wrapper())

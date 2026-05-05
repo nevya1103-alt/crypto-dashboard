@@ -2,17 +2,25 @@
 (function() {
     var cbBtn = document.getElementById('chatbot-fab');
     var cbPanel = document.getElementById('chatbot-panel');
-    var cbClose = document.getElementById('cb-close');
-    var cbInput = document.getElementById('cb-input');
-    var cbSend = document.getElementById('cb-send');
-    var cbBody = document.getElementById('cb-body');
+    var cbClose = document.getElementById('chatbot-close');
+    var cbInput = document.getElementById('chatbot-input');
+    var cbSend = document.getElementById('chatbot-send');
+    var cbBody = document.getElementById('chatbot-body');
+
+    if (!cbBtn || !cbPanel) return;
 
     cbBtn.addEventListener('click', function() {
         cbPanel.classList.add('open');
         cbBtn.style.display = 'none';
         cbInput.focus();
-        window.CryptoDash.trapFocus(cbPanel, cbClose);
+        if (window.CryptoDash.trapFocus) window.CryptoDash.trapFocus(cbPanel, cbClose);
+        if (cbBody.children.length === 0) {
+            addMessage("Hello! I'm CryptoBot AI. How can I help you today?", false);
+        }
     });
+
+    // Auto-open on first load (since lazy-loaded on click)
+    cbBtn.click();
 
     cbClose.addEventListener('click', function() {
         cbPanel.classList.remove('open');
@@ -25,12 +33,7 @@
         var bubble = document.createElement('div');
         bubble.className = 'cb-bubble';
         
-        // Fix XSS: use textContent instead of innerHTML
-        if (!isUser && text.includes('<br>')) {
-            // For simple bot formatting (which we control), we can split by <br> or <b>
-            // Since we generate bot responses safely in JS, innerHTML is okay for bot, 
-            // but for user input, it MUST be textContent.
-            // Let's use textContent for everything and build nodes if needed, or just allow basic tags for bot.
+        if (!isUser) {
             bubble.innerHTML = text; 
         } else {
             bubble.textContent = text;
@@ -45,40 +48,50 @@
         if (!val) return;
         addMessage(val, true);
         cbInput.value = '';
-        if (typeof window.CryptoDash.checkAchievement === 'function') window.CryptoDash.checkAchievement('analyst');
-
+        
         var lower = val.toLowerCase();
         var h = JSON.parse(localStorage.getItem('crypto_holdings_v3') || '{}');
         var cur = window.CryptoDash.currency;
         
         setTimeout(function() {
-            if (lower.includes('loss') || lower.includes('profit')) {
+            if (lower.includes('p&l') || lower.includes('profit') || lower.includes('loss') || lower.includes('portfolio')) {
                 var keys = Object.keys(h);
                 if (!keys.length) { addMessage("You don't hold any coins yet.", false); return; }
-                var res = [];
+                var res = ["<b>Current Portfolio Status:</b>"];
                 keys.forEach(function(k) {
                     var e = h[k];
-                    var p = window.CryptoDash.rawData.find(function(x) { return x.id === k; });
+                    var p = (window.CryptoDash.rawData || []).find(function(x) { return x.id === k; });
                     if (p) {
-                        var cost = e.totalInvestedUSD;
-                        var val = e.qty * p.current_price;
-                        var pnl = val - cost;
-                        res.push("<b>" + e.name + "</b>: " + (pnl >= 0 ? 'Profit ' : 'Loss ') + window.CryptoDash.fmtPrice(pnl, cur));
+                        var pnl = (e.qty * p.current_price) - e.totalInvestedUSD;
+                        res.push("• " + e.name + ": " + (pnl >= 0 ? '🟢 +' : '🔴 ') + window.CryptoDash.fmtPrice(pnl, cur));
                     }
                 });
                 addMessage(res.join('<br>'), false);
-            } else if (lower.includes('best') || lower.includes('top')) {
+            } else if (lower.includes('gainer') || lower.includes('best') || lower.includes('trending')) {
                 var d = window.CryptoDash.rawData || [];
-                if (!d.length) { addMessage("Market data is loading...", false); return; }
                 var sorted = [].concat(d).sort(function(a, b) { return b.price_change_percentage_24h - a.price_change_percentage_24h; });
-                var top3 = sorted.slice(0, 3).map(function(x) { return "<b>" + x.name + "</b>: +" + x.price_change_percentage_24h.toFixed(2) + "%"; });
-                addMessage("Top performers today:<br>" + top3.join('<br>'), false);
+                var top3 = sorted.slice(0, 3).map(function(x) { return "• <b>" + x.name + "</b>: +" + x.price_change_percentage_24h.toFixed(2) + "%"; });
+                addMessage("<b>Top Gainers (24h):</b><br>" + top3.join('<br>'), false);
+            } else if (lower.includes('loser') || lower.includes('worst')) {
+                var d = window.CryptoDash.rawData || [];
+                var sorted = [].concat(d).sort(function(a, b) { return a.price_change_percentage_24h - b.price_change_percentage_24h; });
+                var bottom3 = sorted.slice(0, 3).map(function(x) { return "• <b>" + x.name + "</b>: " + x.price_change_percentage_24h.toFixed(2) + "%"; });
+                addMessage("<b>Top Losers (24h):</b><br>" + bottom3.join('<br>'), false);
+            } else if (lower.includes('mood') || lower.includes('summary')) {
+                addMessage("The market seems <b>neutral to bullish</b> today. BTC is showing strength. Check individual coin charts for precise signals.", false);
             } else {
-                addMessage("I am a simple bot. Try asking about your 'profit/loss' or 'best performing coins'.", false);
+                addMessage("I'm still learning! Try asking about 'gainers', 'losers', 'mood', or your 'P&L'.", false);
             }
-        }, 500);
+        }, 600);
     }
 
     cbSend.addEventListener('click', function() { processInput(cbInput.value.trim()); });
     cbInput.addEventListener('keypress', function(e) { if (e.key === 'Enter') processInput(cbInput.value.trim()); });
+
+    // Chips support
+    document.querySelectorAll('.chip-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            processInput(btn.getAttribute('data-cmd'));
+        });
+    });
 })();

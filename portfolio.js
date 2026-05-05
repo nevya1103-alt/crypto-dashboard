@@ -1,7 +1,7 @@
 /* js/portfolio.js */
 (function() {
     var WK = 'crypto_wallet_v3', HK = 'crypto_holdings_v3', TK = 'crypto_tx_v3', DK = 'crypto_demat_demo_v1';
-    function loadW() { var w = localStorage.getItem(WK); return w ? parseFloat(w) : 10000; }
+    function loadW() { var w = localStorage.getItem(WK); return w ? parseFloat(w) : 0; }
     function saveW(v) { localStorage.setItem(WK, v); syncToCloud(); }
     function loadH() { try { return JSON.parse(localStorage.getItem(HK)) || {}; } catch (e) { return {}; } }
     function saveH(h) { localStorage.setItem(HK, JSON.stringify(h)); syncToCloud(); }
@@ -10,24 +10,11 @@
     function loadD() { try { return JSON.parse(localStorage.getItem(DK)) || {}; } catch (e) { return {}; } }
     function saveD(d) { localStorage.setItem(DK, JSON.stringify(d)); syncToCloud(); }
 
-    /* ── Supabase Sync Logic ── */
-    async function syncToCloud() {
-        var sb = window.CryptoDash.supabase;
-        if (!sb) return;
-        var { data: { user } } = await sb.auth.getUser();
-        if (!user) return;
-
-        var payload = {
-            user_id: user.id,
-            wallet: loadW(),
-            holdings: loadH(),
-            transactions: loadT(),
-            demat: loadD(),
-            updated_at: new Date().toISOString()
-        };
-
-        const { error } = await sb.from('portfolios').upsert(payload, { onConflict: 'user_id' });
-        if (error) console.error("Cloud sync error:", error.message);
+    /* ── Global Sync Proxy ── */
+    function syncToCloud() {
+        if (window.CryptoDash && window.CryptoDash.saveAllToCloud) {
+            window.CryptoDash.saveAllToCloud();
+        }
     }
 
     async function loadFromCloud() {
@@ -47,10 +34,22 @@
             localStorage.setItem(HK, JSON.stringify(data.holdings));
             localStorage.setItem(TK, JSON.stringify(data.transactions));
             localStorage.setItem(DK, JSON.stringify(data.demat));
+            if (data.profile && Object.keys(data.profile).length > 0) {
+                localStorage.setItem('crypto_user_profile', JSON.stringify(data.profile));
+            }
+            
+            refreshAll(); updateBadge();
+            if (window.CryptoDash && window.CryptoDash.loadProfile) window.CryptoDash.loadProfile();
+        } else {
+            // New user or no cloud data – reset but trigger a sync to create the record
+            // We don't clear everything IF it's the very first session (signup data might be in local)
+            // But to be safe, if there's no cloud data, we ensure the cloud gets whatever we have
+            if (window.CryptoDash && window.CryptoDash.saveAllToCloud) {
+                await window.CryptoDash.saveAllToCloud();
+            }
             refreshAll(); updateBadge();
         }
     }
-    loadFromCloud();
     
     function getPriceUSD(id) {
         var rd = window.CryptoDash.rawData;
@@ -424,7 +423,11 @@
             if (window.CryptoDash.sounds) window.CryptoDash.sounds.sell();
             if (typeof window.CryptoDash.checkAchievement === 'function') window.CryptoDash.checkAchievement('first_sell');
         }
-        document.getElementById('trade-qty').value = ''; updateTradeUI();
+        document.getElementById('trade-qty').value = ''; 
+        updateTradeUI();
+        if (window.CryptoDash && window.CryptoDash.recordSnapshot) {
+            window.CryptoDash.recordSnapshot();
+        }
     });
 
     /* Tab switching */
@@ -434,7 +437,11 @@
             tab.classList.add('active'); tab.setAttribute('aria-pressed', 'true');
             document.querySelectorAll('.pt-body').forEach(function (b) { b.classList.remove('active'); });
             document.getElementById('pt-body-' + tab.dataset.tab).classList.add('active');
+            
             if (tab.dataset.tab === 'demat') renderDemat();
+            if (tab.dataset.tab === 'analytics' && window.CryptoDash.renderPerformanceChart) {
+                window.CryptoDash.renderPerformanceChart();
+            }
         });
     });
 
@@ -460,5 +467,6 @@
     pOverlay.addEventListener('click', closePort);
 
     updateBadge(); refreshSummary();
+    loadFromCloud();
 
 })();

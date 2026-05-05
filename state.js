@@ -48,7 +48,7 @@
 
     window.reRenderTable = function () {
         var cur = window.CryptoDash.currency || 'usd';
-        var labels = { usd: 'USD $', eur: 'EUR â‚¬', inr: 'INR â‚¹', btc: 'BTC â‚¿' };
+        var labels = { usd: 'USD $', eur: 'EUR €', inr: 'INR ₹', btc: 'BTC ₿' };
         var priceHeader = document.getElementById('price-col-header');
         if (priceHeader) priceHeader.textContent = 'Price (' + (labels[cur] || cur.toUpperCase()) + ')';
 
@@ -112,4 +112,55 @@
             if (typeof window.CryptoDash.renderAlerts === 'function') window.CryptoDash.renderAlerts();
         });
     });
+
+    /* ── Global Sync Engine ── */
+    window.CryptoDash.saveAllToCloud = async function() {
+        var sb = window.CryptoDash.supabase;
+        if (!sb) return;
+        
+        try {
+            var { data: { user } } = await sb.auth.getUser();
+            if (!user) return;
+
+            var profile = JSON.parse(localStorage.getItem('crypto_user_profile') || '{}');
+            var payload = {
+                user_id: user.id,
+                wallet: parseFloat(localStorage.getItem('crypto_wallet_v3')) || 0,
+                holdings: JSON.parse(localStorage.getItem('crypto_holdings_v3') || '{}'),
+                transactions: JSON.parse(localStorage.getItem('crypto_tx_v3') || '[]'),
+                demat: JSON.parse(localStorage.getItem('crypto_demat_demo_v1') || '{}'),
+                alerts: JSON.parse(localStorage.getItem('crypto_alerts_v1') || '[]'),
+                watchlist: JSON.parse(localStorage.getItem('crypto_watchlist') || '[]'),
+                profile: profile,
+                updated_at: new Date().toISOString()
+            };
+
+            // 1. Primary Save: Portfolios Table
+            const { error: dbError } = await sb.from('portfolios').upsert(payload, { onConflict: 'user_id' });
+            if (dbError) console.warn("Database sync error:", dbError.message);
+
+            // 2. Secondary Save: Auth Metadata (Most reliable for profile)
+            if (profile && Object.keys(profile).length > 0) {
+                await sb.auth.updateUser({
+                    data: {
+                        full_name: profile.name || '',
+                        phone: profile.phone || '',
+                        gender: profile.gender || '',
+                        dob: profile.dob || '',
+                        occupation: profile.occupation || ''
+                    }
+                });
+            }
+        } catch (e) {
+            console.warn("Cloud sync failed:", e.message);
+        }
+    };
+
+    // Helper to clear errors
+    window.CryptoDash.showSyncError = function(e) {
+        if (window.CryptoDash.showToast) {
+            window.CryptoDash.showToast("Sync Error: " + e.message, "error");
+        }
+    };
+
 })();

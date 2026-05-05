@@ -11,15 +11,22 @@
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crypto Dashboard – Live Top 50</title>
+    <title>Crypto Dashboard – Live Market Tracker</title>
+    <meta name="description" content="Track live cryptocurrency prices, manage your portfolio, and get AI-powered trading insights.">
+    
+    <!-- Open Graph / SEO -->
+    <meta property="og:title" content="Crypto Dashboard – Live Market Tracker">
+    <meta property="og:description" content="Real-time crypto portfolio tracking and AI analysis.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="https://cryptodash.example.com/og-image.png">
+    
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <meta name="description"
-        content="Live Cryptocurrency Dashboard – top 50 coins with USD, INR and BTC price toggle, detailed charts, watchlist and trading portfolio.">
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css">
+    
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
 </head>
 
 <body>
@@ -42,6 +49,38 @@
                 <div class="user-label">Logged in as</div>
                 <div class="user-email" id="user-email-display">Loading...</div>
             </div>
+            <div class="user-profile-section">
+                <div class="user-label">Personal Information</div>
+                <div id="profile-view-mode">
+                    <div class="profile-info-item"><span>Name:</span> <span id="view-name">—</span></div>
+                    <div class="profile-info-item"><span>Email:</span> <span id="view-email">—</span></div>
+                    <div class="profile-info-item"><span>Phone:</span> <span id="view-phone">—</span></div>
+                    <div class="profile-info-item"><span>Gender:</span> <span id="view-gender">—</span></div>
+                    <div class="profile-info-item"><span>DOB:</span> <span id="view-dob">—</span></div>
+                    <div class="profile-info-item"><span>Occupation:</span> <span id="view-occupation">—</span></div>
+                    <button class="profile-edit-btn" id="profile-edit-btn">Edit Details</button>
+                </div>
+                <div id="profile-edit-mode" style="display: none;">
+                    <div class="profile-form-grid">
+                        <input type="text" id="edit-name" placeholder="Full Name" class="profile-input">
+                        <input type="text" id="edit-phone" placeholder="Phone Number" class="profile-input">
+                        <select id="edit-gender" class="profile-input">
+                            <option value="">Select Gender</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Non-binary">Non-binary</option>
+                            <option value="Other">Other</option>
+                            <option value="Prefer not to say">Prefer not to say</option>
+                        </select>
+                        <input type="date" id="edit-dob" class="profile-input" title="Date of Birth">
+                        <input type="text" id="edit-occupation" placeholder="Occupation" class="profile-input">
+                    </div>
+                    <div class="profile-edit-actions">
+                        <button class="profile-save-btn" id="profile-save-btn">Save Changes</button>
+                        <button class="profile-cancel-btn" id="profile-cancel-btn">Cancel</button>
+                    </div>
+                </div>
+            </div>
             <hr class="menu-divider">
             <button class="menu-item" id="theme-toggle-menu-btn">
                 <span>Theme</span>
@@ -58,10 +97,29 @@
         </div>
     </div>
 
-    <!-- Price Alerts Button -->
-    <button class="alerts-btn" id="alerts-btn" title="Price Alerts" aria-label="Open price alerts">
-        🔔<span class="alerts-badge hidden" id="alerts-badge">0</span>
-    </button>
+    <!-- Main Navigation Dropdown (Top Left) -->
+    <div class="main-nav-container">
+        <button class="nav-trigger-btn" id="nav-trigger-btn" title="Navigation Menu" aria-label="Open navigation menu">
+            <span class="nav-icon">☰</span>
+        </button>
+        <div class="nav-dropdown" id="nav-dropdown">
+            <button class="nav-menu-item" id="portfolio-btn" title="Open Portfolio">
+                <span>📊 Portfolio</span>
+                <span class="portfolio-badge hidden" id="portfolio-badge">0</span>
+            </button>
+            <button class="nav-menu-item" id="watchlist-btn" title="Open Watchlist">
+                <span>⭐ Watchlist</span>
+                <span class="watchlist-badge hidden" id="watchlist-badge">0</span>
+            </button>
+            <button class="nav-menu-item" id="alerts-btn" title="Price Alerts">
+                <span>🔔 Notifications</span>
+                <span class="alerts-badge hidden" id="alerts-badge">0</span>
+            </button>
+            <button class="nav-menu-item" id="news-btn" title="Market Insights">
+                <span>🗞️ Insights</span>
+            </button>
+        </div>
+    </div>
 
     <!-- Alerts Panel -->
     <div class="alerts-panel-overlay" id="alerts-panel-overlay"></div>
@@ -83,10 +141,6 @@
         </div>
     </div>
 
-    <!-- Portfolio Button -->
-    <button class="portfolio-btn" id="portfolio-btn" title="Open Portfolio" aria-label="Open Portfolio">
-        📊 Portfolio <span class="portfolio-badge hidden" id="portfolio-badge">0</span>
-    </button>
 
     <!-- Portfolio Overlay + Panel -->
     <div id="portfolio-overlay"></div>
@@ -112,6 +166,7 @@
         <div class="pt-tabs">
             <button class="pt-tab active" data-tab="wallet" id="pt-tab-wallet">💰 Wallet</button>
             <button class="pt-tab" data-tab="holdings" id="pt-tab-holdings">📊 Holdings</button>
+            <button class="pt-tab" data-tab="analytics" id="pt-tab-analytics">📈 Analytics</button>
             <button class="pt-tab" data-tab="history" id="pt-tab-history">📜 History</button>
             <button class="pt-tab" data-tab="demat" id="pt-tab-demat">Demat</button>
         </div>
@@ -136,6 +191,15 @@
             </div>
         </div>
         <div class="pt-body" id="pt-body-holdings"></div>
+        <div class="pt-body" id="pt-body-analytics">
+            <div class="analytics-header">
+                <h4>📈 Portfolio Performance</h4>
+                <p>Net worth growth over time (Wallet + Holdings)</p>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="performance-chart"></canvas>
+            </div>
+        </div>
         <div class="pt-body" id="pt-body-history"></div>
         <div class="pt-body" id="pt-body-demat">
             <div class="demat-section">
@@ -211,10 +275,6 @@
         </div>
     </div>
 
-    <!-- Watchlist Button -->
-    <button class="watchlist-btn" id="watchlist-btn" title="Open Watchlist" aria-label="Open Watchlist">
-        ⭐ Watchlist <span class="watchlist-badge hidden" id="watchlist-badge">0</span>
-    </button>
 
     <!-- Watchlist Overlay + Panel -->
     <div id="watchlist-overlay"></div>
@@ -227,6 +287,24 @@
             <button class="watchlist-close-btn" id="watchlist-close-btn" aria-label="Close watchlist">✕</button>
         </div>
         <div id="watchlist-panel-body"></div>
+    </aside>
+
+    <!-- News Overlay + Panel -->
+    <div id="news-overlay"></div>
+    <aside id="news-panel" role="dialog" aria-modal="true" aria-label="Market Insights panel">
+        <div class="news-panel-header">
+            <div class="news-panel-title">🗞️ Market Insights</div>
+            <button class="news-close-btn" id="news-close-btn" aria-label="Close">✕</button>
+        </div>
+        <div class="news-panel-body">
+            <div class="news-refresh-note">Updates every 10 min</div>
+            <div class="news-grid-panel" id="news-container">
+                <!-- News cards injected by JS -->
+                <div class="news-skeleton"></div>
+                <div class="news-skeleton"></div>
+                <div class="news-skeleton"></div>
+            </div>
+        </div>
     </aside>
 
     <!-- Coin Detail Modal -->
@@ -341,6 +419,8 @@
                 </div>
             </div>
         </section>
+
+
         <section class="top-5-section glass-effect">
             <h2>Top 5 by Market Cap 🏆</h2>
             <div class="top-5-grid" id="top-5-container">
@@ -472,15 +552,18 @@
         </div>
     </div>
 
-    <script src="js/config.js"></script>
-    <script src="js/state.js"></script>
-    <script src="js/ui.js"></script>
-    <script src="js/modal.js"></script>
-    <script src="js/portfolio.js"></script>
-    <script src="js/alerts.js"></script>
-    <script src="js/watchlist.js"></script>
-    <script src="js/chatbot.js"></script>
-    <script type="py" src="script.py"></script>
+    <script src="js/toast.js" defer></script>
+    <script src="js/config.js" defer></script>
+    <script src="js/state.js" defer></script>
+    <script src="js/ui.js" defer></script>
+    <script src="js/modal.js" defer></script>
+    <script src="js/portfolio.js" defer></script>
+    <script src="js/alerts.js" defer></script>
+    <script src="js/watchlist.js" defer></script>
+    <script src="js/analytics.js" defer></script>
+    <script src="js/news.js" defer></script>
+    <script src="js/chatbot-loader.js" defer></script>
+    <script type="py" src="script.py" defer></script>
 </body>
 
 </html>
